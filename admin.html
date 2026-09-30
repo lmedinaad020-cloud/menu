@@ -63,7 +63,7 @@
     const client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     // Reemplaza esto con la URL real de tu página visor publicada
-    const VISOR_URL = window.location.origin + '/';
+    const VISOR_URL = window.location.origin + '/menu/';
 
     // Generar el QR
     new QRCode(document.getElementById("qrcode"), {
