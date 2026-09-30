@@ -28,7 +28,8 @@
       box-shadow: 0 10px 25px rgba(0,0,0,0.5);
       display: block;
     }
-    .loading { color: #fff; font-size: 14px; }
+    .loading { color: #fff; font-size: 14px; padding: 20px; }
+    .error { color: #ff6b6b; font-size: 14px; padding: 20px; }
   </style>
 </head>
 <body>
@@ -43,23 +44,43 @@
     const client = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 
     async function loadFlyer() {
-      const { data, error } = await client
-        .from('flyers')
-        .select('image_url')
-        .eq('id', 'flyer-principal')
-        .single();
-
-      if (error || !data) {
-        document.getElementById('status').innerText = 'No se pudo cargar el flyer.';
-        return;
-      }
-
+      const status = document.getElementById('status');
       const img = document.getElementById('flyer-img');
-      img.src = data.image_url;
-      img.onload = () => {
-        document.getElementById('status').style.display = 'none';
-        img.style.display = 'block';
-      };
+
+      try {
+        const { data, error } = await client
+          .from('flyers')
+          .select('image_url')
+          .eq('id', 'flyer-principal')
+          .single();
+
+        if (error) {
+          console.error('Error al consultar Supabase:', error);
+          status.className = 'error';
+          status.innerText = 'Error al cargar flyer: ' + error.message;
+          return;
+        }
+
+        if (!data || !data.image_url) {
+          status.className = 'error';
+          status.innerText = 'Aún no se ha subido ningún flyer.';
+          return;
+        }
+
+        img.src = data.image_url;
+        img.onload = () => {
+          status.style.display = 'none';
+          img.style.display = 'block';
+        };
+        img.onerror = () => {
+          status.className = 'error';
+          status.innerText = 'No se pudo cargar la imagen desde la URL.';
+        };
+      } catch (err) {
+        console.error('Error de red/servidor:', err);
+        status.className = 'error';
+        status.innerText = 'Error de conexión con el servidor.';
+      }
     }
 
     loadFlyer();
