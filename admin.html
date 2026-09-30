@@ -72,55 +72,79 @@
       height: 180
     });
 
-    async function uploadImage() {
-      const fileInput = document.getElementById('file-input');
-      const btn = document.getElementById('upload-btn');
-      const msg = document.getElementById('msg');
+   async function uploadImage() {
+  const fileInput = document.getElementById('file-input');
+  const btn = document.getElementById('upload-btn');
+  const msg = document.getElementById('msg');
 
-      if (!fileInput.files.length) {
-        alert('Por favor selecciona una imagen.');
-        return;
-      }
+  if (!fileInput.files.length) {
+    alert('Por favor selecciona una imagen.');
+    return;
+  }
 
-      const file = fileInput.files[0];
-      const fileName = `flyer_${Date.now()}.${file.name.split('.').pop()}`;
+  const file = fileInput.files[0];
 
-      btn.disabled = true;
-      msg.innerText = 'Subiendo imagen...';
+  // Validar si es una imagen
+  if (!file.type.startsWith('image/')) {
+    alert('El archivo seleccionado debe ser una imagen.');
+    return;
+  }
 
-      // 1. Subir archivo al bucket 'flyers'
-      const { data: storageData, error: storageError } = await client.storage
-        .from('flyers')
-        .upload(fileName, file);
+  // Generar un nombre único para evitar problemas de caché
+  const fileExt = file.name.split('.').pop();
+  const fileName = `flyer_${Date.now()}.${fileExt}`;
 
-      if (storageError) {
-        msg.innerText = 'Error al subir la imagen.';
-        btn.disabled = false;
-        return;
-      }
+  btn.disabled = true;
+  msg.innerText = `Subiendo imagen de alta calidad (${(file.size / (1024 * 1024)).toFixed(2)} MB)... Por favor espera.`;
+  msg.style.color = '#333';
 
-      // 2. Obtener la URL pública del archivo recién subido
-      const { data: publicUrlData } = client.storage
-        .from('flyers')
-        .getPublicUrl(fileName);
+  try {
+    // 1. Subir archivo al bucket 'flyers' con soporte para archivos pesados
+    const { data: storageData, error: storageError } = await client.storage
+      .from('flyers')
+      .upload(fileName, file, {
+        cacheControl: '3600',
+        upsert: true
+      });
 
-      const publicUrl = publicUrlData.publicUrl;
-
-      // 3. Actualizar la referencia en la base de datos
-      const { error: dbError } = await client
-        .from('flyers')
-        .update({ image_url: publicUrl, updated_at: new Date() })
-        .eq('id', 'flyer-principal');
-
+    if (storageError) {
+      console.error('Storage error:', storageError);
+      msg.style.color = 'red';
+      msg.innerText = `Error de subida: ${storageError.message}`;
       btn.disabled = false;
-
-      if (dbError) {
-        msg.innerText = 'Error al actualizar la base de datos.';
-      } else {
-        msg.style.color = 'green';
-        msg.innerText = '¡Flyer actualizado con éxito! El QR no necesita cambiar.';
-      }
+      return;
     }
+
+    // 2. Obtener URL pública
+    const { data: publicUrlData } = client.storage
+      .from('flyers')
+      .getPublicUrl(fileName);
+
+    const publicUrl = publicUrlData.publicUrl;
+
+    // 3. Actualizar la tabla de base de datos
+    const { error: dbError } = await client
+      .from('flyers')
+      .update({ image_url: publicUrl, updated_at: new Date() })
+      .eq('id', 'flyer-principal');
+
+    btn.disabled = false;
+
+    if (dbError) {
+      console.error('DB error:', dbError);
+      msg.style.color = 'red';
+      msg.innerText = `Error en BD: ${dbError.message}`;
+    } else {
+      msg.style.color = 'green';
+      msg.innerText = '¡Imagen HD cargada y flyer actualizado con éxito!';
+    }
+  } catch (err) {
+    console.error('Unexpected error:', err);
+    msg.style.color = 'red';
+    msg.innerText = 'Ocurrió un error inesperado al subir.';
+    btn.disabled = false;
+  }
+}
   </script>
 </body>
 </html>
